@@ -7,10 +7,17 @@ from baselines.common.mpi_adam import MpiAdam
 from baselines.common.mpi_moments import mpi_moments
 from mpi4py import MPI
 from collections import deque
+import gym
 
-def traj_segment_generator(pi, env, horizon, stochastic):
+def traj_segment_generator(pi, env, horizon, stochastic, using_mujocomanip):
     t = 0
-    ac = env.action_space.sample() # not used, just so we have the datatype
+    
+    if using_mujocomanip:
+        ac_space_low_high = env.action_space
+        ac_space = gym.spaces.Box(low=ac_space_low_high[0], high=ac_space_low_high[1], dtype=np.float32)
+    else:
+        ac_space = env.action_space
+    ac = ac_space.sample() # not used, just so we have the datatype
     new = True # marks if we're on first timestep of an episode
     ob = env.reset()
 
@@ -61,6 +68,9 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             ob = env.reset()
         t += 1
 
+        if env.has_renderer:
+            env.render()
+
 def add_vtarg_and_adv(seg, gamma, lam):
     """
     Compute target value using TD(lambda) estimator, and advantage with GAE(lambda)
@@ -85,12 +95,18 @@ def learn(env, policy_fn, *,
         max_timesteps=0, max_episodes=0, max_iters=0, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
         adam_epsilon=1e-5,
-        schedule='constant' # annealing for stepsize parameters (epsilon and adam)
+        schedule='constant', # annealing for stepsize parameters (epsilon and adam),
+        using_mujocomanip = False
         ):
     # Setup losses and stuff
     # ----------------------------------------
     ob_space = env.observation_space
-    ac_space = env.action_space
+
+    if using_mujocomanip:
+        ac_space_low_high = env.action_space
+        ac_space = gym.spaces.Box(low=ac_space_low_high[0], high=ac_space_low_high[1], dtype=np.float32)
+    else:
+        ac_space = env.action_space
     pi = policy_fn("pi", ob_space, ac_space) # Construct network for new policy
     oldpi = policy_fn("oldpi", ob_space, ac_space) # Network for old policy
     atarg = tf.placeholder(dtype=tf.float32, shape=[None]) # Target advantage function (if applicable)
@@ -130,7 +146,7 @@ def learn(env, policy_fn, *,
 
     # Prepare for rollouts
     # ----------------------------------------
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_actorbatch, stochastic=True)
+    seg_gen = traj_segment_generator(pi, env, timesteps_per_actorbatch, stochastic=True, using_mujocomanip= using_mujocomanip)
 
     episodes_so_far = 0
     timesteps_so_far = 0
@@ -197,7 +213,7 @@ def learn(env, policy_fn, *,
         logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
         lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
         listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
-        lens, rews = map(flatten_lists, zip(*listoflrpairs))
+        lens, rews = map(flatten_lists, zip(*listoflrpairs)) #map() function returns a list of the results after applying the given function to each item of a given iterable (list, tuple etc.)
         lenbuffer.extend(lens)
         rewbuffer.extend(rews)
         logger.record_tabular("EpLenMean", np.mean(lenbuffer))
@@ -210,7 +226,15 @@ def learn(env, policy_fn, *,
         logger.record_tabular("TimestepsSoFar", timesteps_so_far)
         logger.record_tabular("TimeElapsed", time.time() - tstart)
         if MPI.COMM_WORLD.Get_rank()==0:
-            logger.dump_tabular()
+            logger.dump_tabular()     
+
+        # tf.contrib.learn.monitors.CaptureVariable()  
+        # monitor = learn.monitors.CaptureVariable(var_name='EpRewMean:0', every_n=1, first_n=1)
+
+        # merged = tf.summary.merge_all()
+        # train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',
+        #                                       sess.graph)
+        # tf.global_variables_initializer().run()
 
     return pi
 

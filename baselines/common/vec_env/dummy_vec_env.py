@@ -56,6 +56,10 @@ class DummyVecEnv(VecEnv):
     def render(self, mode='human'):
         return [e.render(mode=mode) for e in self.envs]
 
+    def render2(self, mode='human'):
+        if self.envs[0].env.has_renderer:
+            self.envs[0].render()
+
     def _save_obs(self, e, obs):
         for k in self.keys:
             if k is None:

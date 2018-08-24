@@ -20,9 +20,21 @@ def worker(remote, parent_remote, env_fn_wrapper):
                 remote.send(ob)
             elif cmd == 'render':
                 remote.send(env.render(mode='rgb_array'))
+            elif cmd == 'render2':
+                if env.has_renderer:
+                    env.render()
+                remote.send(None)
+            elif cmd == 'set_horizon':
+                env.horizon = data
+                remote.send(None)
+            elif cmd == 'set_robot_joint_positions':
+                print('in set_robot_joint_positions in')
+                env.set_robot_joint_positions(data)
+                print('in set_robot_joint_positions out')
+                remote.send(None)
             elif cmd == 'close':
+                print('closing')
                 remote.close()
-                break
             elif cmd == 'get_spaces':
                 remote.send((env.observation_space, env.action_space))
             else:
@@ -51,6 +63,7 @@ class SubprocVecEnv(VecEnv):
             remote.close()
 
         self.remotes[0].send(('get_spaces', None))
+        
         observation_space, action_space = self.remotes[0].recv()
         self.viewer = None
         VecEnv.__init__(self, len(env_fns), observation_space, action_space)
@@ -74,6 +87,16 @@ class SubprocVecEnv(VecEnv):
     def reset_task(self):
         for remote in self.remotes:
             remote.send(('reset_task', None))
+        return np.stack([remote.recv() for remote in self.remotes])
+
+    def set_horizon(self, horizon_len):
+        for pipe in self.remotes:
+            pipe.send(('set_horizon', horizon_len))
+        return np.stack([remote.recv() for remote in self.remotes])
+
+    def set_robot_joint_positions(self, robot_q):
+        for pipe in self.remotes:
+            pipe.send(('set_robot_joint_positions', robot_q))
         return np.stack([remote.recv() for remote in self.remotes])
 
     def close(self):
@@ -106,3 +129,23 @@ class SubprocVecEnv(VecEnv):
             return bigimg
         else:
             raise NotImplementedError
+
+
+    def render2(self, mode='human'):
+        for pipe in self.remotes:
+            pipe.send(('render2', None))
+        nones = [pipe.recv() for pipe in self.remotes]
+        # imgs = [pipe.recv() for pipe in self.remotes]
+        # bigimg = tile_images(imgs)
+        # if mode == 'human':
+        #     if self.viewer is None:
+        #         from gym.envs.classic_control import rendering
+        #         self.viewer = rendering.SimpleImageViewer()
+
+        #     self.viewer.imshow(bigimg[:, :, ::-1])
+
+        # elif mode == 'rgb_array':
+        #     return bigimg
+        # else:
+        #     raise NotImplementedError
+        

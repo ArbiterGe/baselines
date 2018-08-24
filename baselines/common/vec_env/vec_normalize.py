@@ -39,3 +39,7 @@ class VecNormalize(VecEnvWrapper):
     def reset(self):
         obs = self.venv.reset()
         return self._obfilt(obs)
+
+    def render2(self):
+
+        return self.venv.render2()

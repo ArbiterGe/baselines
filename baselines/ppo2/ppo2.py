@@ -15,13 +15,17 @@ from baselines.common.mpi_adam_optimizer import MpiAdamOptimizer
 from mpi4py import MPI
 from baselines.common.tf_util import initialize
 from baselines.common.mpi_util import sync_from_root
+import gym
 
 class Model(object):
     def __init__(self, *, policy, ob_space, ac_space, nbatch_act, nbatch_train,
                 nsteps, ent_coef, vf_coef, max_grad_norm):
         sess = get_session()
 
+        print(type(ac_space))
+
         with tf.variable_scope('ppo2_model', reuse=tf.AUTO_REUSE):
+            print(nbatch_act)
             act_model = policy(nbatch_act, 1, sess)
             train_model = policy(nbatch_train, nsteps, sess)
 
@@ -112,6 +116,7 @@ class Runner(AbstractEnvRunner):
                 maybeepinfo = info.get('episode')
                 if maybeepinfo: epinfos.append(maybeepinfo)
             mb_rewards.append(rewards)
+            self.env.render2()
         #batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
@@ -152,7 +157,7 @@ def constfn(val):
 def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0, lr=3e-4,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
             log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-            save_interval=0, load_path=None, **network_kwargs):
+            save_interval=0, load_path=None, using_mujocomanip=False, **network_kwargs):
     '''
     Learn policy using PPO algorithm (https://arxiv.org/abs/1707.06347)
     
@@ -220,17 +225,21 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
     nenvs = env.num_envs
     ob_space = env.observation_space
-    ac_space = env.action_space
+    if using_mujocomanip:
+        ac_space_low_high = env.action_space
+        ac_space = gym.spaces.Box(low=ac_space_low_high[0], high=ac_space_low_high[1], dtype=np.float32)
+    else:
+        ac_space = env.action_space
     nbatch = nenvs * nsteps
     nbatch_train = nbatch // nminibatches
 
     make_model = lambda : Model(policy=policy, ob_space=ob_space, ac_space=ac_space, nbatch_act=nenvs, nbatch_train=nbatch_train,
                     nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
                     max_grad_norm=max_grad_norm)
-    if save_interval and logger.get_dir():
-        import cloudpickle
-        with open(osp.join(logger.get_dir(), 'make_model.pkl'), 'wb') as fh:
-            fh.write(cloudpickle.dumps(make_model))
+    # if save_interval and logger.get_dir():
+    #     import cloudpickle
+    #     with open(osp.join(logger.get_dir(), 'make_model.pkl'), 'wb') as fh:
+    #         fh.write(cloudpickle.dumps(make_model))
     model = make_model()
     if load_path is not None:
         model.load(load_path)
@@ -239,7 +248,20 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
     epinfobuf = deque(maxlen=100)
     tfirststart = time.time()
 
+    print(nsteps)
+    print(total_timesteps)
+    print('nminibatches', nminibatches)
+    print(noptepochs)
+    print(nsteps)
+    print('nbatch ', nbatch)
+    print(nenvs)
+    print('nbatch_train ', nbatch_train)
+    #exit(0)
+
+
+
     nupdates = total_timesteps//nbatch
+    print(nupdates)
     for update in range(1, nupdates+1):
         assert nbatch % nminibatches == 0
         tstart = time.time()
@@ -247,6 +269,8 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
         obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run() #pylint: disable=E0632
+        # for oo in obs:
+        #     print(oo)
         epinfobuf.extend(epinfos)
         mblossvals = []
         if states is None: # nonrecurrent version
@@ -257,7 +281,11 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                     end = start + nbatch_train
                     mbinds = inds[start:end]
                     slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
-                    mblossvals.append(model.train(lrnow, cliprangenow, *slices))
+                    mblossvals.append(model.train(lrnow, cliprangenow, *slices)) # This loop is what takes ages
+
+                    #if env.has_renderer:
+                    
+
         else: # recurrent version
             assert nenvs % nminibatches == 0
             envsperbatch = nenvs // nminibatches
