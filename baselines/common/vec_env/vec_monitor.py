@@ -27,3 +27,7 @@ class VecMonitor(VecEnvWrapper):
                 self.eplens[i] = 0
             newinfos.append(info)
         return obs, rews, dones, newinfos
+
+    def render2(self):
+
+        return self.venv.render2()

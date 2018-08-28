@@ -28,12 +28,9 @@ def worker(remote, parent_remote, env_fn_wrapper):
                 env.horizon = data
                 remote.send(None)
             elif cmd == 'set_robot_joint_positions':
-                print('in set_robot_joint_positions in')
                 env.set_robot_joint_positions(data)
-                print('in set_robot_joint_positions out')
                 remote.send(None)
             elif cmd == 'close':
-                print('closing')
                 remote.close()
             elif cmd == 'get_spaces':
                 remote.send((env.observation_space, env.action_space))

@@ -22,10 +22,7 @@ class Model(object):
                 nsteps, ent_coef, vf_coef, max_grad_norm):
         sess = get_session()
 
-        print(type(ac_space))
-
         with tf.variable_scope('ppo2_model', reuse=tf.AUTO_REUSE):
-            print(nbatch_act)
             act_model = policy(nbatch_act, 1, sess)
             train_model = policy(nbatch_train, nsteps, sess)
 
@@ -106,6 +103,8 @@ class Runner(AbstractEnvRunner):
         epinfos = []
         for _ in range(self.nsteps):
             actions, values, self.states, neglogpacs = self.model.step(self.obs, S=self.states, M=self.dones)
+            #print('actions',actions)
+            #print('self.obs',self.obs)
             mb_obs.append(self.obs.copy())
             mb_actions.append(actions)
             mb_values.append(values)
@@ -115,6 +114,7 @@ class Runner(AbstractEnvRunner):
             for info in infos:
                 maybeepinfo = info.get('episode')
                 if maybeepinfo: epinfos.append(maybeepinfo)
+            #epinfos.append(infos)
             mb_rewards.append(rewards)
             self.env.render2()
         #batch of steps to batch of rollouts
@@ -245,23 +245,19 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         model.load(load_path)
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
 
-    epinfobuf = deque(maxlen=100)
-    tfirststart = time.time()
-
-    print(nsteps)
-    print(total_timesteps)
-    print('nminibatches', nminibatches)
-    print(noptepochs)
-    print(nsteps)
-    print('nbatch ', nbatch)
-    print(nenvs)
-    print('nbatch_train ', nbatch_train)
-    #exit(0)
-
-
-
+    epinfobuf = deque(maxlen=nsteps)
     nupdates = total_timesteps//nbatch
-    print(nupdates)
+
+    print('nsteps', nsteps)
+    print('nenvs', nenvs)
+    print('total_timesteps', total_timesteps)
+    print('nminibatches', nminibatches)
+    print('noptepochs', noptepochs)
+    print('nbatch = nenvs * nsteps ', nbatch)    
+    print('nbatch_train = nbatch // nminibatches ', nbatch_train)    
+    print('nupdates = total_timesteps//nbatch', nupdates)
+
+    tfirststart = time.time()
     for update in range(1, nupdates+1):
         assert nbatch % nminibatches == 0
         tstart = time.time()
@@ -269,6 +265,9 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         lrnow = lr(frac)
         cliprangenow = cliprange(frac)
         obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run() #pylint: disable=E0632
+
+        #print(obs)
+
         # for oo in obs:
         #     print(oo)
         epinfobuf.extend(epinfos)
@@ -281,11 +280,8 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                     end = start + nbatch_train
                     mbinds = inds[start:end]
                     slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
-                    mblossvals.append(model.train(lrnow, cliprangenow, *slices)) # This loop is what takes ages
-
+                    mblossvals.append(model.train(lrnow, cliprangenow, *slices)) # This loop is what takes long (roberto)
                     #if env.has_renderer:
-                    
-
         else: # recurrent version
             assert nenvs % nminibatches == 0
             envsperbatch = nenvs // nminibatches
@@ -312,6 +308,11 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
             logger.logkv("total_timesteps", update*nbatch)
             logger.logkv("fps", fps)
             logger.logkv("explained_variance", float(ev))
+            #print(np.array([epinfo['r'] for epinfo in epinfobuf]))
+            # print(np.array([epinfo['r'] for epinfo in epinfobuf]).shape)
+            # print(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0))
+            # print(safemean(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0)))
+            #logger.logkv('eprewmean', safemean(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0)))
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
