@@ -225,11 +225,11 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
     nenvs = env.num_envs
     ob_space = env.observation_space
-    if using_mujocomanip:
-        ac_space_low_high = env.action_space
-        ac_space = gym.spaces.Box(low=ac_space_low_high[0], high=ac_space_low_high[1], dtype=np.float32)
-    else:
-        ac_space = env.action_space
+    # if using_mujocomanip:
+    #     ac_space_low_high = env.action_space
+    #     ac_space = gym.spaces.Box(low=ac_space_low_high[0], high=ac_space_low_high[1], dtype=np.float32)
+    # else:
+    ac_space = env.action_space
     nbatch = nenvs * nsteps
     nbatch_train = nbatch // nminibatches
 
