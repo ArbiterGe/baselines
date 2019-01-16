@@ -103,18 +103,19 @@ class Runner(AbstractEnvRunner):
         epinfos = []
         for _ in range(self.nsteps):
             actions, values, self.states, neglogpacs = self.model.step(self.obs, S=self.states, M=self.dones)
-            #print('actions',actions)
-            #print('self.obs',self.obs)
             mb_obs.append(self.obs.copy())
             mb_actions.append(actions)
             mb_values.append(values)
             mb_neglogpacs.append(neglogpacs)
             mb_dones.append(self.dones)
+            # The returned values are arraws with num of elements = num threads
+            # E.g. infos is [ncpu * info], where info is a dictionary per thread
+            # and this is per step in teh episode
             self.obs[:], rewards, self.dones, infos = self.env.step(actions)
-            for info in infos:
-                maybeepinfo = info.get('episode')
-                if maybeepinfo: epinfos.append(maybeepinfo)
-            #epinfos.append(infos)
+            for one_thread_info in infos:
+                # This special key only appears when the episode ends and summarizes the episode info
+                one_thread_one_step_info = one_thread_info.get('episode')
+                if one_thread_one_step_info: epinfos.append(one_thread_one_step_info)
             mb_rewards.append(rewards)
             self.env.render2()
         #batch of steps to batch of rollouts
@@ -271,6 +272,9 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         # for oo in obs:
         #     print(oo)
         epinfobuf.extend(epinfos)
+
+        # print(returns)
+        # print(epinfos)
         mblossvals = []
         if states is None: # nonrecurrent version
             inds = np.arange(nbatch)
@@ -303,10 +307,10 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         fps = int(nbatch / (tnow - tstart))
         if update % log_interval == 0 or update == 1:
             ev = explained_variance(values, returns)
-            logger.logkv("serial_timesteps", update*nsteps)
-            logger.logkv("nupdates", update)
+            #logger.logkv("serial_timesteps", update*nsteps)
+            #logger.logkv("nupdates", update)
             logger.logkv("total_timesteps", update*nbatch)
-            logger.logkv("fps", fps)
+            #logger.logkv("fps", fps)
             logger.logkv("explained_variance", float(ev))
             #print(np.array([epinfo['r'] for epinfo in epinfobuf]))
             # print(np.array([epinfo['r'] for epinfo in epinfobuf]).shape)
@@ -314,7 +318,14 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
             # print(safemean(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0)))
             #logger.logkv('eprewmean', safemean(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0)))
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
-            logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
+
+            # To publish extra information that is different per task
+            if 'add_vals' in epinfobuf[0].keys():
+                for add_val in epinfobuf[0]['add_vals']:
+                    logger.logkv(add_val+'mean', safemean([epinfo[add_val] for epinfo in epinfobuf]))
+
+            logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
+            #logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
             for (lossval, lossname) in zip(lossvals, model.loss_names):
                 logger.logkv(lossname, lossval)

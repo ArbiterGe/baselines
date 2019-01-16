@@ -16,6 +16,8 @@ class VecMonitor(VecEnvWrapper):
 
     def step_wait(self):
         obs, rews, dones, infos = self.venv.step_wait()
+        # self.eprets is a vector that accumulates the reward per episode
+        # It contains num_envs (environments = parallel threads) values
         self.eprets += rews
         self.eplens += 1
         newinfos = []
@@ -23,6 +25,11 @@ class VecMonitor(VecEnvWrapper):
             info = info.copy()
             if done:
                 info['episode'] = {'r': ret, 'l': eplen}
+                # To publish extra information that is different per task
+                if 'add_vals' in info.keys():
+                    info['episode']['add_vals'] = info['add_vals']
+                    for add_val in info['add_vals']:
+                        info['episode'][add_val] = info[add_val]
                 self.eprets[i] = 0
                 self.eplens[i] = 0
             newinfos.append(info)
