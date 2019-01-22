@@ -317,12 +317,13 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
             # print(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0))
             # print(safemean(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0)))
             #logger.logkv('eprewmean', safemean(np.sum(np.array([epinfo['r'] for epinfo in epinfobuf]),0)))
-            logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
-
             # To publish extra information that is different per task
-            if 'add_vals' in epinfobuf[0].keys():
-                for add_val in epinfobuf[0]['add_vals']:
-                    logger.logkv(add_val+'mean', safemean([epinfo[add_val] for epinfo in epinfobuf]))
+            if len(epinfobuf):
+                if 'add_vals' in epinfobuf[0].keys():
+                    for add_val in epinfobuf[0]['add_vals']:
+                        for epinfo in epinfobuf:
+                            print(epinfo[add_val])
+                        logger.logkv(add_val+'mean', safemean([epinfo[add_val] for epinfo in epinfobuf]))
 
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
             #logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
@@ -331,6 +332,9 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                 logger.logkv(lossname, lossval)
             if MPI.COMM_WORLD.Get_rank() == 0:
                 logger.dumpkvs()
+
+            epinfobuf = deque(maxlen=nsteps)
+
         if save_interval and (update % save_interval == 0 or update == 1) and logger.get_dir() and MPI.COMM_WORLD.Get_rank() == 0:
             checkdir = osp.join(logger.get_dir(), 'checkpoints')
             os.makedirs(checkdir, exist_ok=True)

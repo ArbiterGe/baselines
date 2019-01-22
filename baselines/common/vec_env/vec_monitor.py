@@ -25,11 +25,13 @@ class VecMonitor(VecEnvWrapper):
             info = info.copy()
             if done:
                 info['episode'] = {'r': ret, 'l': eplen}
+                print("Adding accumulated reward {} for one thread at the end of the episode".format(ret))
                 # To publish extra information that is different per task
                 if 'add_vals' in info.keys():
                     info['episode']['add_vals'] = info['add_vals']
                     for add_val in info['add_vals']:
                         info['episode'][add_val] = info[add_val]
+                        print("Adding {} = {} for one thread at the end of the episode".format(add_val, info[add_val]))
                 self.eprets[i] = 0
                 self.eplens[i] = 0
             newinfos.append(info)
