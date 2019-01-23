@@ -248,7 +248,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
     epinfobuf = deque(maxlen=nsteps)
     nupdates = total_timesteps//nbatch
-
+    print("THIS IS THE LATEST VERSION") # TODO(rachel0)
     print('nsteps', nsteps)
     print('nenvs', nenvs)
     print('total_timesteps', total_timesteps)
