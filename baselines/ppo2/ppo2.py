@@ -321,12 +321,14 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
             if len(epinfobuf):
                 if 'add_vals' in epinfobuf[0].keys():
                     for add_val in epinfobuf[0]['add_vals']:
+                        '''
                         for epinfo in epinfobuf:
                             print(epinfo[add_val])
+                        '''
                         logger.logkv(add_val+'mean', safemean([epinfo[add_val] for epinfo in epinfobuf]))
 
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
-            #logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
+            logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
             for (lossval, lossname) in zip(lossvals, model.loss_names):
                 logger.logkv(lossname, lossval)
