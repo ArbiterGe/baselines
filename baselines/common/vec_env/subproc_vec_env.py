@@ -34,6 +34,9 @@ def worker(remote, parent_remote, env_fn_wrapper):
                 remote.close()
             elif cmd == 'get_spaces':
                 remote.send((env.observation_space, env.action_space))
+            elif cmd == 'render_ext':
+                ob = env.render_additional_image(camera_name='agentview',camera_height=480, camera_width=640, camera_depth=False)
+                remote.send(ob)
             else:
                 raise NotImplementedError
     except KeyboardInterrupt:
@@ -145,4 +148,8 @@ class SubprocVecEnv(VecEnv):
         #     return bigimg
         # else:
         #     raise NotImplementedError
-        
+
+    def render_ext(self):
+        for remote in self.remotes:
+            remote.send(('render_ext', None))
+        return np.stack([remote.recv() for remote in self.remotes])
