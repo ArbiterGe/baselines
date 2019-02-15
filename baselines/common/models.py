@@ -20,7 +20,7 @@ def nature_cnn(unscaled_images, **conv_kwargs):
     return activ(fc(h3, 'fc1', nh=512, init_scale=np.sqrt(2)))
 
 
-def mlp(num_layers=2, num_hidden=64, activation=tf.tanh):
+def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, **mlp_kwargs):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -42,7 +42,60 @@ def mlp(num_layers=2, num_hidden=64, activation=tf.tanh):
         h = tf.layers.flatten(X)
         for i in range(num_layers):
             h = activation(fc(h, 'mlp_fc{}'.format(i), nh=num_hidden, init_scale=np.sqrt(2)))
+
         return h, None
+
+    return network_fn
+
+def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13):
+    """
+    Stack of fully-connected layers to be used in a policy / q-function approximator
+
+    Parameters:
+    ----------
+
+    num_layers: int                 number of fully-connected layers (default: 2)
+
+    num_hidden: int                 size of fully-connected layers (default: 64)
+
+    activation:                     activation function (default: tf.tanh)
+
+    resolution:                     resolution of the image (assumed squared)
+
+    feat_size:                      size of the intermediate feature representation for both the image and the proprioception
+
+    proprio_dim:                    dimensions of the vector that contain proprioceptive information (13 is 3 for ee position, 4 for ee ori quat, and 6 for ee vel)
+
+    Returns:
+    -------
+
+    function that builds fully connected network with a given input tensor / placeholder
+    """
+    def network_fn(X): 
+            
+        rgb = tf.reshape(X[:, :(resolution*resolution*3)], [-1, resolution, resolution, 3])
+        proprio = X[:, -proprio_dim:]
+        #h_vis = cnn_small()(rgb)
+
+        h_vis = tf.cast(rgb, tf.float32) / 255.
+        
+        activ = tf.nn.relu
+        h_vis = activ(conv(h_vis, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
+        h_vis = activ(conv(h_vis, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        h_vis = conv_to_fc(h_vis)
+        h_vis = activ(fc(h_vis, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
+
+        h_prop = tf.layers.flatten(proprio)
+        h_prop = activation(fc(h_prop, 'mlpprop_fc1', nh=feat_size, init_scale=np.sqrt(2)))
+
+        h = tf.concat([h_vis, h_prop], 1)
+        for i in range(num_layers):
+            h = fc(h, 'mlp_fc{}'.format(i), nh=num_hidden, init_scale=np.sqrt(2))
+            if layer_norm:
+                h = tf.contrib.layers.layer_norm(h, center=True, scale=True)
+            h = activation(h)
+
+        return h, None #tf.concat([h, h_vis], 1)
 
     return network_fn
   
@@ -200,5 +253,7 @@ def get_network_builder(name):
         return cnn_lstm
     elif name == 'cnn_lnlstm':
         return cnn_lnlstm
+    elif name=='cnn_mlp':
+        return cnn_mlp
     else:
         raise ValueError('Unknown network type: {}'.format(name))
