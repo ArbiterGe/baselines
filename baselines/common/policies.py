@@ -47,8 +47,6 @@ class PolicyWithValue(object):
 
         self.pd, self.pi = self.pdtype.pdfromlatent(latent, init_scale=0.01)
 
-        # TODO(rachel0) - check this change
-        print("stochastic: ", stochastic) # TODO - remove debug statement
         self.action = self.pd.sample() if stochastic else self.pd.mode()
         self.neglogp = self.pd.neglogp(self.action)
         self.sess = sess

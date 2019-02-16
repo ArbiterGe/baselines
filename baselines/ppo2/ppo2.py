@@ -226,10 +226,6 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
     nenvs = env.num_envs
     ob_space = env.observation_space
-    # if using_mujocomanip:
-    #     ac_space_low_high = env.action_space
-    #     ac_space = gym.spaces.Box(low=ac_space_low_high[0], high=ac_space_low_high[1], dtype=np.float32)
-    # else:
     ac_space = env.action_space
     nbatch = nenvs * nsteps
     nbatch_train = nbatch // nminibatches
@@ -237,10 +233,6 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
     make_model = lambda : Model(policy=policy, ob_space=ob_space, ac_space=ac_space, nbatch_act=nenvs, nbatch_train=nbatch_train,
                     nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
                     max_grad_norm=max_grad_norm)
-    # if save_interval and logger.get_dir():
-    #     import cloudpickle
-    #     with open(osp.join(logger.get_dir(), 'make_model.pkl'), 'wb') as fh:
-    #         fh.write(cloudpickle.dumps(make_model))
     model = make_model()
     if load_path is not None:
         model.load(load_path)
@@ -248,15 +240,14 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
     epinfobuf = deque(maxlen=nsteps)
     nupdates = total_timesteps//nbatch
-    print("THIS IS HOPEFULLY THE LATEST VERSION") # TODO(rachel0)
-    print('nsteps', nsteps)
-    print('nenvs', nenvs)
-    print('total_timesteps', total_timesteps)
-    print('nminibatches', nminibatches)
-    print('noptepochs', noptepochs)
-    print('nbatch = nenvs * nsteps ', nbatch)    
-    print('nbatch_train = nbatch // nminibatches ', nbatch_train)    
-    print('nupdates = total_timesteps//nbatch', nupdates)
+    logger.debug('nsteps', nsteps)
+    logger.debug('nenvs', nenvs)
+    logger.debug('total_timesteps', total_timesteps)
+    logger.debug('nminibatches', nminibatches)
+    logger.debug('noptepochs', noptepochs)
+    logger.debug('nbatch = nenvs * nsteps ', nbatch)    
+    logger.debug('nbatch_train = nbatch // nminibatches ', nbatch_train)    
+    logger.debug('nupdates = total_timesteps//nbatch', nupdates)
 
     tfirststart = time.time()
     for update in range(1, nupdates+1):
@@ -267,14 +258,8 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         cliprangenow = cliprange(frac)
         obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run() #pylint: disable=E0632
 
-        #print(obs)
-
-        # for oo in obs:
-        #     print(oo)
         epinfobuf.extend(epinfos)
 
-        # print(returns)
-        # print(epinfos)
         mblossvals = []
         if states is None: # nonrecurrent version
             inds = np.arange(nbatch)
