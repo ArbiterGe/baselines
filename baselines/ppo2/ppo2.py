@@ -306,10 +306,6 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
             if len(epinfobuf):
                 if 'add_vals' in epinfobuf[0].keys():
                     for add_val in epinfobuf[0]['add_vals']:
-                        '''
-                        for epinfo in epinfobuf:
-                            print(epinfo[add_val])
-                        '''
                         logger.logkv(add_val+'mean', safemean([epinfo[add_val] for epinfo in epinfobuf]))
 
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
@@ -328,6 +324,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
             savepath = osp.join(checkdir, '%.5i'%update)
             print('Saving to', savepath)
             model.save(savepath)
+
     env.close()
     return model
 
