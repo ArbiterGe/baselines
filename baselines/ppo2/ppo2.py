@@ -19,7 +19,7 @@ import gym
 
 class Model(object):
     def __init__(self, *, policy, ob_space, ac_space, nbatch_act, nbatch_train,
-                nsteps, ent_coef, vf_coef, max_grad_norm):
+                 nsteps, ent_coef, vf_coef, max_grad_norm, training=True):
         sess = get_session()
 
         with tf.variable_scope('ppo2_model', reuse=tf.AUTO_REUSE):
@@ -58,24 +58,25 @@ class Model(object):
             grads, _grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
         grads_and_var = list(zip(grads, var))
 
-        _train = trainer.apply_gradients(grads_and_var)
+        if training:
+            _train = trainer.apply_gradients(grads_and_var)
 
-        def train(lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None):
-            advs = returns - values
-            advs = (advs - advs.mean()) / (advs.std() + 1e-8)
-            td_map = {train_model.X:obs, A:actions, ADV:advs, R:returns, LR:lr,
-                    CLIPRANGE:cliprange, OLDNEGLOGPAC:neglogpacs, OLDVPRED:values}
-            if states is not None:
-                td_map[train_model.S] = states
-                td_map[train_model.M] = masks
-            return sess.run(
-                [pg_loss, vf_loss, entropy, approxkl, clipfrac, _train],
-                td_map
-            )[:-1]
-        self.loss_names = ['policy_loss', 'value_loss', 'policy_entropy', 'approxkl', 'clipfrac']
+            def train(lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None):
+                advs = returns - values
+                advs = (advs - advs.mean()) / (advs.std() + 1e-8)
+                td_map = {train_model.X:obs, A:actions, ADV:advs, R:returns, LR:lr,
+                        CLIPRANGE:cliprange, OLDNEGLOGPAC:neglogpacs, OLDVPRED:values}
+                if states is not None:
+                    td_map[train_model.S] = states
+                    td_map[train_model.M] = masks
+                return sess.run(
+                    [pg_loss, vf_loss, entropy, approxkl, clipfrac, _train],
+                    td_map
+                )[:-1]
+            self.loss_names = ['policy_loss', 'value_loss', 'policy_entropy', 'approxkl', 'clipfrac']
 
 
-        self.train = train
+            self.train = train
         self.train_model = train_model
         self.act_model = act_model
         self.step = act_model.step
@@ -158,7 +159,7 @@ def constfn(val):
 def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0, lr=3e-4,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
             log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-            save_interval=0, load_path=None, using_mujocomanip=False, **network_kwargs):
+            save_interval=0, load_path=None, using_mujocomanip=False, callback_func=None, **network_kwargs):
     '''
     Learn policy using PPO algorithm (https://arxiv.org/abs/1707.06347)
     
@@ -290,6 +291,15 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
         lossvals = np.mean(mblossvals, axis=0)
         tnow = time.time()
         fps = int(nbatch / (tnow - tstart))
+
+        if save_interval and (update % save_interval == 0 or update == 1) and logger.get_dir() and MPI.COMM_WORLD.Get_rank() == 0:
+            checkdir = osp.join(logger.get_dir(), 'checkpoints')
+            os.makedirs(checkdir, exist_ok=True)
+            savepath = osp.join(checkdir, '%.5i'%update)
+            print('Saving to', savepath)
+            model.save(savepath)
+            if callback_func is not None: callback_func(savepath)
+        
         if update % log_interval == 0 or update == 1:
             ev = explained_variance(values, returns)
             #logger.logkv("serial_timesteps", update*nsteps)
@@ -317,13 +327,6 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                 logger.dumpkvs()
 
             epinfobuf = deque(maxlen=nsteps)
-
-        if save_interval and (update % save_interval == 0 or update == 1) and logger.get_dir() and MPI.COMM_WORLD.Get_rank() == 0:
-            checkdir = osp.join(logger.get_dir(), 'checkpoints')
-            os.makedirs(checkdir, exist_ok=True)
-            savepath = osp.join(checkdir, '%.5i'%update)
-            print('Saving to', savepath)
-            model.save(savepath)
 
     env.close()
     return model
