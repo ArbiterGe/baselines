@@ -98,6 +98,71 @@ def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, r
         return h, None #tf.concat([h, h_vis], 1)
 
     return network_fn
+
+def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13):
+    """
+    Stack of fully-connected layers to be used in a policy / q-function approximator
+
+    Parameters:
+    ----------
+
+    num_layers: int                 number of fully-connected layers (default: 2)
+
+    num_hidden: int                 size of fully-connected layers (default: 64)
+
+    activation:                     activation function (default: tf.tanh)
+
+    resolution:                     resolution of the image (assumed squared)
+
+    feat_size:                      size of the intermediate feature representation for both the image and the proprioception
+
+    proprio_dim:                    dimensions of the vector that contain proprioceptive information (13 is 3 for ee position, 4 for ee ori quat, and 6 for ee vel)
+
+    Returns:
+    -------
+
+    function that builds fully connected network with a given input tensor / placeholder
+    """
+    def network_fn(X): 
+            
+        rgb_size = (resolution*resolution*3)
+        rgb_one = tf.reshape(X[:, :rgb_size], [-1, resolution, resolution, 3])
+        proprio_one = X[:, rgb_size:rgb_size + proprio_dim]
+
+        rgb_two = tf.reshape(X[:, rgb_size+proprio_dim:rgb_size+proprio_dim+rgb_size], [-1, resolution, resolution, 3])
+        proprio_two = X[:, rgb_size+proprio_dim+rgb_size:rgb_size+proprio_dim+rgb_size + proprio_dim]
+        #h_vis = cnn_small()(rgb)
+
+        h_vis_one = tf.cast(rgb_one, tf.float32) / 255.        
+        activ_one = tf.nn.relu
+        h_vis_one = activ_one(conv(h_vis_one, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
+        h_vis_one = activ_one(conv(h_vis_one, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        h_vis_one = conv_to_fc(h_vis_one)
+        h_vis_one = activ_one(fc(h_vis_one, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
+
+        h_prop_one = tf.layers.flatten(proprio_one)
+        h_prop_one = activation(fc(h_prop_one, 'mlpprop_fc1', nh=feat_size, init_scale=np.sqrt(2)))
+
+        h_vis_two = tf.cast(rgb_two, tf.float32) / 255.        
+        activ_two = tf.nn.relu
+        h_vis_two = activ_two(conv(h_vis_two, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
+        h_vis_two = activ_two(conv(h_vis_two, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        h_vis_two = conv_to_fc(h_vis_two)
+        h_vis_two = activ_two(fc(h_vis_two, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
+
+        h_prop_two = tf.layers.flatten(proprio_two)
+        h_prop_two = activation(fc(h_prop_two, 'mlpprop_fc1', nh=feat_size, init_scale=np.sqrt(2)))
+
+        h = tf.concat([h_vis_one, h_prop_one,h_vis_two, h_prop_two], 1)
+        for i in range(num_layers):
+            h = fc(h, 'mlp_fc{}'.format(i), nh=num_hidden, init_scale=np.sqrt(2))
+            if layer_norm:
+                h = tf.contrib.layers.layer_norm(h, center=True, scale=True)
+            h = activation(h)
+
+        return h, None #tf.concat([h, h_vis], 1)
+
+    return network_fn
   
 
 def cnn(**conv_kwargs):
@@ -255,5 +320,7 @@ def get_network_builder(name):
         return cnn_lnlstm
     elif name=='cnn_mlp':
         return cnn_mlp
+    elif name=='double_cnn_mlp':
+        return double_cnn_mlp
     else:
         raise ValueError('Unknown network type: {}'.format(name))
