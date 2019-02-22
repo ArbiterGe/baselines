@@ -63,7 +63,7 @@ class Model(object):
         if training:
             _train = trainer.apply_gradients(grads_and_var)
 
-            def train(lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None, schedule_ent = 0.0):
+            def train(schedule_ent, lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None):
                 advs = returns - values
                 advs = (advs - advs.mean()) / (advs.std() + 1e-8)
                 td_map = {train_model.X:obs, A:actions, ADV:advs, R:returns, LR:lr,
@@ -276,7 +276,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                     end = start + nbatch_train
                     mbinds = inds[start:end]
                     slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
-                    mblossvals.append(model.train(lrnow, cliprangenow, *slices, schedule_entropy_val)) # This loop is what takes long (roberto)
+                    mblossvals.append(model.train(schedule_entropy_val, lrnow, cliprangenow, *slices)) # This loop is what takes long (roberto)
                     #if env.has_renderer:
         else: # recurrent version
             assert nenvs % nminibatches == 0
