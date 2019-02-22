@@ -161,7 +161,7 @@ def constfn(val):
 def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0, lr=3e-4,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
             log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-            save_interval=0, load_path=None, using_mujocomanip=False, callback_func=None, max_schedule_ent=0, **network_kwargs):
+            save_interval=0, load_path=None, using_mujocomanip=False, callback_func=None, max_schedule_ent=0, starting_timestep=1, **network_kwargs):
     '''
     Learn policy using PPO algorithm (https://arxiv.org/abs/1707.06347)
     
