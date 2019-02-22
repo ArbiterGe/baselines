@@ -47,7 +47,7 @@ def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, **mlp_kwargs):
 
     return network_fn
 
-def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13):
+def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13, **mlp_kwargs):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -99,7 +99,7 @@ def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, r
 
     return network_fn
 
-def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13):
+def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13, **mlp_kwargs):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -184,7 +184,7 @@ def cnn_small(**conv_kwargs):
 
 
 
-def lstm(nlstm=128, layer_norm=False):
+def lstm(nlstm=128, layer_norm=False, **mlp_kwargs):
     """
     Builds LSTM (Long-Short Term Memory) network to be used in a policy.
     Note that the resulting function returns not only the output of the LSTM 

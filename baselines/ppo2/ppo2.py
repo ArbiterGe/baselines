@@ -34,6 +34,8 @@ class Model(object):
         LR = tf.placeholder(tf.float32, [])
         CLIPRANGE = tf.placeholder(tf.float32, [])
 
+        SCHEDULERENT = tf.placeholder(tf.float32, None)
+
         neglogpac = train_model.pd.neglogp(A)
         entropy = tf.reduce_mean(train_model.pd.entropy())
 
@@ -48,7 +50,7 @@ class Model(object):
         pg_loss = tf.reduce_mean(tf.maximum(pg_losses, pg_losses2))
         approxkl = .5 * tf.reduce_mean(tf.square(neglogpac - OLDNEGLOGPAC))
         clipfrac = tf.reduce_mean(tf.to_float(tf.greater(tf.abs(ratio - 1.0), CLIPRANGE)))
-        loss = pg_loss - entropy * ent_coef + vf_loss * vf_coef
+        loss = pg_loss + entropy * ent_coef * SCHEDULERENT + vf_loss * vf_coef #Roberto: changed -entropy by +entropy to penalize and schedule it
         params = tf.trainable_variables('ppo2_model')
         trainer = MpiAdamOptimizer(MPI.COMM_WORLD, learning_rate=LR, epsilon=1e-5)
         grads_and_var = trainer.compute_gradients(loss, params)
@@ -61,11 +63,11 @@ class Model(object):
         if training:
             _train = trainer.apply_gradients(grads_and_var)
 
-            def train(lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None):
+            def train(schedule_ent, lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None):
                 advs = returns - values
                 advs = (advs - advs.mean()) / (advs.std() + 1e-8)
                 td_map = {train_model.X:obs, A:actions, ADV:advs, R:returns, LR:lr,
-                        CLIPRANGE:cliprange, OLDNEGLOGPAC:neglogpacs, OLDVPRED:values}
+                        CLIPRANGE:cliprange, OLDNEGLOGPAC:neglogpacs, OLDVPRED:values,SCHEDULERENT:schedule_ent }
                 if states is not None:
                     td_map[train_model.S] = states
                     td_map[train_model.M] = masks
@@ -159,7 +161,7 @@ def constfn(val):
 def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0, lr=3e-4,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
             log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-            save_interval=0, load_path=None, using_mujocomanip=False, callback_func=None, starting_timestep=1, **network_kwargs):
+            save_interval=0, load_path=None, using_mujocomanip=False, callback_func=None, max_schedule_ent=0, **network_kwargs):
     '''
     Learn policy using PPO algorithm (https://arxiv.org/abs/1707.06347)
     
@@ -251,6 +253,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
     logger.debug('nupdates = total_timesteps//nbatch', nupdates)
 
     tfirststart = time.time()
+    schedule_entropy_val = 0.0
     for update in range(1, nupdates+1):
         assert nbatch % nminibatches == 0
         tstart = time.time()
@@ -261,6 +264,9 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
         epinfobuf.extend(epinfos)
 
+        if max_schedule_ent != 0.0:
+            schedule_entropy_val += max_schedule_ent/float(nupdates)
+
         mblossvals = []
         if states is None: # nonrecurrent version
             inds = np.arange(nbatch)
@@ -270,7 +276,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                     end = start + nbatch_train
                     mbinds = inds[start:end]
                     slices = (arr[mbinds] for arr in (obs, returns, masks, actions, values, neglogpacs))
-                    mblossvals.append(model.train(lrnow, cliprangenow, *slices)) # This loop is what takes long (roberto)
+                    mblossvals.append(model.train(schedule_entropy_val, lrnow, cliprangenow, *slices)) # This loop is what takes long (roberto)
                     #if env.has_renderer:
         else: # recurrent version
             assert nenvs % nminibatches == 0
