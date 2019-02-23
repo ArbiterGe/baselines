@@ -47,7 +47,7 @@ def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, **mlp_kwargs):
 
     return network_fn
 
-def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13, **mlp_kwargs):
+def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 256, proprio_dim=13, **mlp_kwargs):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -71,6 +71,8 @@ def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, r
 
     function that builds fully connected network with a given input tensor / placeholder
     """
+
+
     def network_fn(X): 
             
         rgb = tf.reshape(X[:, :(resolution*resolution*3)], [-1, resolution, resolution, 3])
@@ -99,7 +101,7 @@ def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, r
 
     return network_fn
 
-def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 24, proprio_dim=13, **mlp_kwargs):
+def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 256, proprio_dim=13, **mlp_kwargs):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -135,26 +137,26 @@ def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=F
 
         h_vis_one = tf.cast(rgb_one, tf.float32) / 255.        
         activ_one = tf.nn.relu
-        h_vis_one = activ_one(conv(h_vis_one, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
-        h_vis_one = activ_one(conv(h_vis_one, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        h_vis_one = activ_one(conv(h_vis_one, 'c11', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
+        h_vis_one = activ_one(conv(h_vis_one, 'c12', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
         h_vis_one = conv_to_fc(h_vis_one)
-        h_vis_one = activ_one(fc(h_vis_one, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
+        h_vis_one = activ_one(fc(h_vis_one, 'fc11', nh=feat_size, init_scale=np.sqrt(2)))
 
         h_prop_one = tf.layers.flatten(proprio_one)
-        h_prop_one = activation(fc(h_prop_one, 'mlpprop_fc1', nh=feat_size, init_scale=np.sqrt(2)))
+        h_prop_one = activation(fc(h_prop_one, 'mlpprop_fc11', nh=feat_size, init_scale=np.sqrt(2)))
 
         h_vis_two = tf.cast(rgb_two, tf.float32) / 255.        
         activ_two = tf.nn.relu
-        h_vis_two = activ_two(conv(h_vis_two, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
-        h_vis_two = activ_two(conv(h_vis_two, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        h_vis_two = activ_two(conv(h_vis_two, 'c21', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
+        h_vis_two = activ_two(conv(h_vis_two, 'c22', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
         h_vis_two = conv_to_fc(h_vis_two)
-        h_vis_two = activ_two(fc(h_vis_two, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
+        h_vis_two = activ_two(fc(h_vis_two, 'fc21', nh=feat_size, init_scale=np.sqrt(2)))
 
         h_prop_two = tf.layers.flatten(proprio_two)
-        h_prop_two = activation(fc(h_prop_two, 'mlpprop_fc1', nh=feat_size, init_scale=np.sqrt(2)))
+        h_prop_two = activation(fc(h_prop_two, 'mlpprop_fc21', nh=feat_size, init_scale=np.sqrt(2)))
 
         h = tf.concat([h_vis_one, h_prop_one,h_vis_two, h_prop_two], 1)
-        for i in range(num_layers):
+        for i in range(2*num_layers):
             h = fc(h, 'mlp_fc{}'.format(i), nh=num_hidden, init_scale=np.sqrt(2))
             if layer_norm:
                 h = tf.contrib.layers.layer_norm(h, center=True, scale=True)
