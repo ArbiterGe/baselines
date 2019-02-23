@@ -19,13 +19,20 @@ import gym
 
 class Model(object):
     def __init__(self, *, policy, ob_space, ac_space, nbatch_act, nbatch_train,
-                 nsteps, ent_coef, vf_coef, max_grad_norm, training=True):
+                 nsteps, ent_coef, vf_coef, max_grad_norm, training=True, use_entropy_scheduler=False):
         sess = get_session()
 
         with tf.variable_scope('ppo2_model', reuse=tf.AUTO_REUSE):
             act_model = policy(nbatch_act, 1, sess)
             train_model = policy(nbatch_train, nsteps, sess)
+            # TODO(rachel0) - used for debugging
+            #logstd = tf.get_variable(name='pi/logstd')
+            #std = tf.exp(logstd)
 
+        # TODO(rachel0) - used for debugging
+        #print_log_std = tf.print("Log std dev: ", logstd)
+        #print_std = tf.print("Std dev: ", std)
+            
         A = train_model.pdtype.sample_placeholder([None])
         ADV = tf.placeholder(tf.float32, [None])
         R = tf.placeholder(tf.float32, [None])
@@ -50,7 +57,11 @@ class Model(object):
         pg_loss = tf.reduce_mean(tf.maximum(pg_losses, pg_losses2))
         approxkl = .5 * tf.reduce_mean(tf.square(neglogpac - OLDNEGLOGPAC))
         clipfrac = tf.reduce_mean(tf.to_float(tf.greater(tf.abs(ratio - 1.0), CLIPRANGE)))
-        loss = pg_loss + entropy * ent_coef * SCHEDULERENT + vf_loss * vf_coef #Roberto: changed -entropy by +entropy to penalize and schedule it
+        if use_entropy_scheduler:
+             # change -entropy by +entropy to penalize and schedule it
+            loss = pg_loss + entropy * ent_coef * SCHEDULERENT + vf_loss * vf_coef
+        else:
+            loss = pg_loss - entropy * ent_coef + vf_loss * vf_coef
         params = tf.trainable_variables('ppo2_model')
         trainer = MpiAdamOptimizer(MPI.COMM_WORLD, learning_rate=LR, epsilon=1e-5)
         grads_and_var = trainer.compute_gradients(loss, params)
@@ -71,6 +82,8 @@ class Model(object):
                 if states is not None:
                     td_map[train_model.S] = states
                     td_map[train_model.M] = masks
+                # TODO(rachel0) - used for debugging
+                #sess.run([print_std, print_log_std])
                 return sess.run(
                     [pg_loss, vf_loss, entropy, approxkl, clipfrac, _train],
                     td_map
@@ -161,7 +174,10 @@ def constfn(val):
 def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0, lr=3e-4,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,
             log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-            save_interval=0, load_path=None, using_mujocomanip=False, callback_func=None, max_schedule_ent=0, starting_timestep=1, **network_kwargs):
+            save_interval=0, load_path=None, using_mujocomanip=False,
+          callback_func=None, max_schedule_ent=0, starting_timestep=1,
+          logstd_anneal_start=None, logstd_anneal_end=None,
+          **network_kwargs):
     '''
     Learn policy using PPO algorithm (https://arxiv.org/abs/1707.06347)
     
@@ -225,7 +241,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
     else: assert callable(cliprange)
     total_timesteps = int(total_timesteps)
 
-    policy = build_policy(env, network, **network_kwargs)
+    policy = build_policy(env, network, initial_logstd=logstd_anneal_start, **network_kwargs)
 
     nenvs = env.num_envs
     ob_space = env.observation_space
@@ -235,7 +251,7 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
     make_model = lambda : Model(policy=policy, ob_space=ob_space, ac_space=ac_space, nbatch_act=nenvs, nbatch_train=nbatch_train,
                     nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
-                    max_grad_norm=max_grad_norm)
+                                max_grad_norm=max_grad_norm, use_entropy_scheduler=(max_schedule_ent != 0))
     model = make_model()
     if load_path is not None:
         model.load(load_path)
@@ -264,6 +280,13 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
         epinfobuf.extend(epinfos)
 
+        if logstd_anneal_start is not None and logstd_anneal_end is not None:
+            with tf.variable_scope('ppo2_model', reuse=tf.AUTO_REUSE):
+                mutable_logstd = tf.get_variable(name='pi/logstd')
+                update_term = np.ones(mutable_logstd.shape)*(logstd_anneal_end-logstd_anneal_start)/float(nupdates)
+                sess = tf.get_default_session()
+                sess.run(tf.assign_add(mutable_logstd, update_term))
+            
         if max_schedule_ent != 0.0:
             schedule_entropy_val += max_schedule_ent/float(nupdates)
 

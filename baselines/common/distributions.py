@@ -83,9 +83,15 @@ class DiagGaussianPdType(PdType):
     def pdclass(self):
         return DiagGaussianPd
 
-    def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0):
+    def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0, initial_logstd=None):
         mean = fc(latent_vector, 'pi', self.size, init_scale=init_scale, init_bias=init_bias)
-        logstd = tf.get_variable(name='pi/logstd', shape=[1, self.size], initializer=tf.zeros_initializer())
+        
+        if initial_logstd is None:
+            logstd = tf.get_variable(name='pi/logstd', shape=[1, self.size], initializer=tf.zeros_initializer())
+        else:
+            init = tf.constant_initializer(np.ones((1,self.size))*initial_logstd)
+            logstd = tf.get_variable(name='pi/logstd', shape=[1, self.size], initializer=init, trainable=False)
+            
         pdparam = tf.concat([mean, mean * 0.0 + logstd], axis=1)
         return self.pdfromflat(pdparam), mean
 
