@@ -347,7 +347,9 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
                     for add_val in epinfobuf[0]['add_vals']:
                         logger.logkv(add_val+'mean', safemean([epinfo[add_val] for epinfo in epinfobuf]))
 
+            logger.logkv('percent_viapoints_std', safestd([epinfo['percent_viapoints_'] for epinfo in epinfobuf]))
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
+            logger.logkv('eprewstd', safestd([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
             for (lossval, lossname) in zip(lossvals, model.loss_names):
@@ -362,6 +364,9 @@ def learn(*, network, env, total_timesteps, seed=None, nsteps=2048, ent_coef=0.0
 
 def safemean(xs):
     return np.nan if len(xs) == 0 else np.mean(xs)
+
+def safestd(xs):
+    return np.nan if len(xs) == 0 else np.std(xs)
 
 
 
