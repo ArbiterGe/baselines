@@ -37,6 +37,9 @@ def worker(remote, parent_remote, env_fn_wrapper):
             elif cmd == 'render_ext':
                 ob = env.render_additional_image(camera_name='agentview',camera_height=480, camera_width=640, camera_depth=False)
                 remote.send(ob)
+            elif cmd == 'render_fast':
+                ob = env.render_additional_image(camera_name='agentview',camera_height=data, camera_width=data, camera_depth=False)
+                remote.send(ob)
             else:
                 raise NotImplementedError
     except KeyboardInterrupt:
@@ -152,4 +155,9 @@ class SubprocVecEnv(VecEnv):
     def render_ext(self):
         for remote in self.remotes:
             remote.send(('render_ext', None))
+        return np.stack([remote.recv() for remote in self.remotes])
+
+    def render_fast(self, resolution):
+        for remote in self.remotes:
+            remote.send(('render_fast', resolution))
         return np.stack([remote.recv() for remote in self.remotes])
