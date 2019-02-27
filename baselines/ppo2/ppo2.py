@@ -62,16 +62,18 @@ class Model(object):
             loss = pg_loss + entropy * ent_coef * SCHEDULERENT + vf_loss * vf_coef
         else:
             loss = pg_loss - entropy * ent_coef + vf_loss * vf_coef
-        params = tf.trainable_variables('ppo2_model')
-        trainer = MpiAdamOptimizer(MPI.COMM_WORLD, learning_rate=LR, epsilon=1e-5)
-        grads_and_var = trainer.compute_gradients(loss, params)
-        grads, var = zip(*grads_and_var)
 
-        if max_grad_norm is not None:
-            grads, _grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
-        grads_and_var = list(zip(grads, var))
-
+        # TODO - moved training up
         if training:
+            params = tf.trainable_variables('ppo2_model')
+            trainer = MpiAdamOptimizer(MPI.COMM_WORLD, learning_rate=LR, epsilon=1e-5)
+            grads_and_var = trainer.compute_gradients(loss, params)
+            grads, var = zip(*grads_and_var)
+
+            if max_grad_norm is not None:
+                grads, _grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
+                grads_and_var = list(zip(grads, var))
+        
             _train = trainer.apply_gradients(grads_and_var)
 
             def train(schedule_ent, lr, cliprange, obs, returns, masks, actions, values, neglogpacs, states=None):
