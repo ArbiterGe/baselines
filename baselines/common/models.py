@@ -85,7 +85,7 @@ def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, r
         h_vis = activ(conv(h_vis, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
         h_vis = activ(conv(h_vis, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
         h_vis = conv_to_fc(h_vis)
-        h_vis = activ(fc(h_vis, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
+        h_vis = activation(fc(h_vis, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
 
         h_prop = tf.layers.flatten(proprio)
         h_prop = activation(fc(h_prop, 'mlpprop_fc1', nh=feat_size, init_scale=np.sqrt(2)))
@@ -140,7 +140,7 @@ def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=F
         h_vis_one = activ_one(conv(h_vis_one, 'c11', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
         h_vis_one = activ_one(conv(h_vis_one, 'c12', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
         h_vis_one = conv_to_fc(h_vis_one)
-        h_vis_one = activ_one(fc(h_vis_one, 'fc11', nh=feat_size, init_scale=np.sqrt(2)))
+        h_vis_one = activation(fc(h_vis_one, 'fc11', nh=feat_size, init_scale=np.sqrt(2)))
 
         h_prop_one = tf.layers.flatten(proprio_one)
         h_prop_one = activation(fc(h_prop_one, 'mlpprop_fc11', nh=feat_size, init_scale=np.sqrt(2)))
@@ -150,7 +150,7 @@ def double_cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=F
         h_vis_two = activ_two(conv(h_vis_two, 'c21', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
         h_vis_two = activ_two(conv(h_vis_two, 'c22', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
         h_vis_two = conv_to_fc(h_vis_two)
-        h_vis_two = activ_two(fc(h_vis_two, 'fc21', nh=feat_size, init_scale=np.sqrt(2)))
+        h_vis_two = activation(fc(h_vis_two, 'fc21', nh=feat_size, init_scale=np.sqrt(2)))
 
         h_prop_two = tf.layers.flatten(proprio_two)
         h_prop_two = activation(fc(h_prop_two, 'mlpprop_fc21', nh=feat_size, init_scale=np.sqrt(2)))
