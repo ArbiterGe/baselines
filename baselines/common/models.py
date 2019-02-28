@@ -47,7 +47,7 @@ def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, **mlp_kwargs):
 
     return network_fn
 
-def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 256, proprio_dim=13, **mlp_kwargs):
+def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, resolution=24, feat_size = 256, proprio_dim=13, cnn_small = True,**mlp_kwargs):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -82,8 +82,14 @@ def cnn_mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False, r
         h_vis = tf.cast(rgb, tf.float32) / 255.
         
         activ = tf.nn.relu
-        h_vis = activ(conv(h_vis, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
-        h_vis = activ(conv(h_vis, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        if cnn_small:
+            h_vis = activ(conv(h_vis, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2)))
+            h_vis = activ(conv(h_vis, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2)))
+        else:
+            h_vis = activ(conv(h_vis, 'c1', nf=32, rf=8, stride=4, init_scale=np.sqrt(2),**mlp_kwargs))
+            h_vis = activ(conv(h_vis, 'c2', nf=64, rf=4, stride=2, init_scale=np.sqrt(2), **mlp_kwargs))
+            h_vis = activ(conv(h_vis, 'c3', nf=64, rf=3, stride=1, init_scale=np.sqrt(2), **mlp_kwargs))
+
         h_vis = conv_to_fc(h_vis)
         h_vis = activation(fc(h_vis, 'fc1', nh=feat_size, init_scale=np.sqrt(2)))
 
