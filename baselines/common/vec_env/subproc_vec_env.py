@@ -35,7 +35,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
             elif cmd == 'get_spaces':
                 remote.send((env.observation_space, env.action_space))
             elif cmd == 'render_ext':
-                ob = env.render_additional_image(camera_name='agentview',camera_height=480, camera_width=640, camera_depth=False)
+                ob = env.render_additional_image(camera_name='externalview',camera_height=480, camera_width=640, camera_depth=False)
                 remote.send(ob)
             elif cmd == 'render_fast':
                 ob = env.render_additional_image(camera_name='agentview',camera_height=data, camera_width=data, camera_depth=False)
