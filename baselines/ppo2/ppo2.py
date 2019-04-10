@@ -25,13 +25,6 @@ class Model(object):
         with tf.variable_scope('ppo2_model', reuse=tf.AUTO_REUSE):
             act_model = policy(nbatch_act, 1, sess)
             train_model = policy(nbatch_train, nsteps, sess)
-            # TODO(rachel0) - used for debugging
-            #logstd = tf.get_variable(name='pi/logstd')
-            #std = tf.exp(logstd)
-
-        # TODO(rachel0) - used for debugging
-        #print_log_std = tf.print("Log std dev: ", logstd)
-        #print_std = tf.print("Std dev: ", std)
             
         A = train_model.pdtype.sample_placeholder([None])
         ADV = tf.placeholder(tf.float32, [None])
@@ -63,7 +56,6 @@ class Model(object):
         else:
             loss = pg_loss - entropy * ent_coef + vf_loss * vf_coef
 
-        # TODO - moved training up
         if training:
             params = tf.trainable_variables('ppo2_model')
             trainer = MpiAdamOptimizer(MPI.COMM_WORLD, learning_rate=LR, epsilon=1e-5)
@@ -84,8 +76,6 @@ class Model(object):
                 if states is not None:
                     td_map[train_model.S] = states
                     td_map[train_model.M] = masks
-                # TODO(rachel0) - used for debugging
-                #sess.run([print_std, print_log_std])
                 return sess.run(
                     [pg_loss, vf_loss, entropy, approxkl, clipfrac, _train],
                     td_map
