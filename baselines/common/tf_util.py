@@ -341,7 +341,8 @@ def load_variables(load_path, variables=None, sess=None):
     loaded_params = joblib.load(os.path.expanduser(load_path))
     restores = []
     for v in variables:
-        restores.append(v.assign(loaded_params[v.name]))
+        no_prefix_name = v.name[len('static-policy/'):] if 'static-policy' in v.name else v.name
+        restores.append(v.assign(loaded_params[no_prefix_name]))
     sess.run(restores)
 
 
