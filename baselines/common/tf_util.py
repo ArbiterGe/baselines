@@ -334,15 +334,16 @@ def save_variables(save_path, variables=None, sess=None):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     joblib.dump(save_dict, save_path)
 
-def load_variables(load_path, variables=None, sess=None):
+def load_variables(load_path, variables=None, sess=None, prefix=None):
     sess = sess or get_session()
     variables = variables or tf.trainable_variables()
 
     loaded_params = joblib.load(os.path.expanduser(load_path))
     restores = []
     for v in variables:
-        no_prefix_name = v.name[len('static-policy/'):] if 'static-policy' in v.name else v.name
-        restores.append(v.assign(loaded_params[no_prefix_name]))
+        # ignore prefix, as it won't exist in original file
+        name = v.name[len(prefix+'/'):] if prefix is not None else v.name
+        restores.append(v.assign(loaded_params[name]))
     sess.run(restores)
 
 
