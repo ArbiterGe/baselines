@@ -336,7 +336,11 @@ def save_variables(save_path, variables=None, sess=None):
 
 def load_variables(load_path, variables=None, sess=None, prefix=None):
     sess = sess or get_session()
-    variables = variables or tf.trainable_variables()
+    variables = variables
+    if prefix is not None:
+        variables = tf.trainable_variables(prefix)
+    else:
+        variables = tf.trainable_variables()
 
     loaded_params = joblib.load(os.path.expanduser(load_path))
     restores = []
